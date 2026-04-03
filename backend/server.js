@@ -41,7 +41,7 @@ app.use((req, res) => {
 	res.sendFile(path.join(__dirname, "frontend", "dist", "index.html"));
 });
 
-server.listen(PORT, async() => {
+server.listen(PORT,"0.0.0.0", async() => {
     connectToMongoDB();
     console.log(`Server running on port ${PORT}`)
     //Start consumer AFTER DB is ready

@@ -8,11 +8,20 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+backend/node_modules
+frontend/node_modules
+
 dist
 dist-ssr
-*.local
+build
+coverage
+backend/dist
+frontend/dist
 
 .env
+.env.*
+
+*.local
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +33,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+docker-compose.override.yml
+*.pid
+*.seed
