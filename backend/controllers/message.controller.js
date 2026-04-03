@@ -28,10 +28,10 @@ export const sendMessage = async (req, res) => {
 			conversation.messages.push(newMessage._id);
 		}
 
-		// ✅ Save in DB (keep this)
+		//  Save in DB
 		await Promise.all([conversation.save(), newMessage.save()]);
 
-		// 🔥 SEND TO KINESIS (instead of socket)
+		//  SEND TO KINESIS (instead of socket)
 		await sendMessageToKinesis({
 			...newMessage.toObject(),
 			type: "NEW_MESSAGE",

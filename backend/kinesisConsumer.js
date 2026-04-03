@@ -2,9 +2,11 @@ import {
   KinesisClient,
   GetShardIteratorCommand,
   GetRecordsCommand,
+  DescribeStreamCommand,
 } from "@aws-sdk/client-kinesis";
 
 import { io, getReceiverSocketId } from "./socket/socket.js";
+import Message from "./models/message.model.js";
 
 const client = new KinesisClient({
   region: "ap-south-1",
@@ -16,7 +18,7 @@ let isConsumerRunning = false;
 
 export const startKinesisConsumer = async () => {
   if (isConsumerRunning) {
-    console.log("Kinesis consumer already running");
+    console.log(" Kinesis consumer already running");
     return;
   }
 
@@ -25,12 +27,14 @@ export const startKinesisConsumer = async () => {
   try {
     let shardIterator = await getShardIterator();
 
-    console.log("Kinesis Consumer Started...");
+    console.log(" Kinesis Consumer Started...");
 
     setInterval(async () => {
       try {
-        // Ensure iterator exists
+        console.log(" Polling Kinesis...");
+
         if (!shardIterator) {
+          console.log(" Shard iterator missing, fetching again...");
           shardIterator = await getShardIterator();
         }
 
@@ -41,63 +45,93 @@ export const startKinesisConsumer = async () => {
           })
         );
 
-        // Update iterator
+        //  IMPORTANT: Always update iterator
         shardIterator = response.NextShardIterator;
 
         const records = response.Records || [];
 
         if (records.length > 0) {
-          console.log(`Received ${records.length} messages from Kinesis`);
-        }
+          console.log(` Records received: ${records.length}`);
 
-        for (const record of records) {
-          try {
-            const data = JSON.parse(
-              Buffer.from(record.Data).toString()
-            );
+          for (const record of records) {
+            try {
+              //  Decode raw data
+              const rawData = Buffer.from(record.Data).toString();
+              console.log(" Raw Data:", rawData);
 
-            console.log("Kinesis Data:", data);
+              //  Parse JSON
+              const data = JSON.parse(rawData);
+              console.log(" Parsed Message:", data);
 
-            if (!data || !data.receiverId) continue;
-
-            if (data.type === "NEW_MESSAGE") {
-              const receiverSocketId = getReceiverSocketId(data.receiverId);
-
-              if (receiverSocketId) {
-                console.log(`Sending message to ${data.receiverId}`);
-                io.to(receiverSocketId).emit("newMessage", data);
+              if (!data || !data.receiverId) {
+                console.log(" Invalid data, skipping...");
+                continue;
               }
+
+              //  HANDLE NEW MESSAGE EVENT
+              if (data.type === "NEW_MESSAGE") {
+                const receiverSocketId = getReceiverSocketId(data.receiverId);
+
+                if (receiverSocketId) {
+                  console.log(` Sending message to user: ${data.receiverId}`);
+                  io.to(receiverSocketId).emit("newMessage", data);
+                } else {
+                  console.log(` User ${data.receiverId} not connected`);
+                }
+              }
+
+              //  OPTIONAL: Save to MongoDB (if needed)
+              // await Message.create(data);
+
+            } catch (err) {
+              console.error(" Failed to process record:", err);
             }
-          } catch (err) {
-            console.error("Failed to process record:", err);
           }
+
+        } else {
+          console.log(" No records");
         }
 
       } catch (error) {
-        console.error("Polling error:", error.name);
+        console.error(" Polling error:", error.name);
 
-        // Handle expired iterator
         if (error.name === "ExpiredIteratorException") {
-          console.log("Refreshing shard iterator...");
+          console.log(" Iterator expired, refreshing...");
           shardIterator = await getShardIterator();
         }
       }
     }, 2000);
 
   } catch (error) {
-    console.error("Kinesis Consumer Initialization Error:", error);
+    console.error(" Kinesis Consumer Initialization Error:", error);
   }
 };
 
-// Helper function
+//  Get shard dynamically
 const getShardIterator = async () => {
-  const response = await client.send(
-    new GetShardIteratorCommand({
-      StreamName: STREAM_NAME,
-      ShardId: "shardId-000000000000",
-      ShardIteratorType: "LATEST",
-    })
-  );
+  try {
+    const streamData = await client.send(
+      new DescribeStreamCommand({
+        StreamName: STREAM_NAME,
+      })
+    );
 
-  return response.ShardIterator;
+    const shardId = streamData.StreamDescription.Shards[0].ShardId;
+
+    console.log(" Using Shard ID:", shardId);
+
+    const response = await client.send(
+      new GetShardIteratorCommand({
+        StreamName: STREAM_NAME,
+        ShardId: shardId,
+        ShardIteratorType: "TRIM_HORIZON",
+      })
+    );
+
+    return response.ShardIterator;
+
+  } catch (error) {
+    console.error(" Error getting shard iterator:", error);
+    throw error;
+  }
 };

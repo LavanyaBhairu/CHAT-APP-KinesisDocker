@@ -26,20 +26,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 
-app.use(express.static(path.join(__dirname, "/frontend/dist")));
-
-// app.get("/", (req, res) => {
-     //root route http://localhost:5000
-//     res.send("Hello world!");
-// });
-
-// app.get("/*", (req, res) => {
-// 	res.sendFile(path.join(__dirname, "frontend", "dist", "index.html"));
-// });
-
-app.use((req, res) => {
-	res.sendFile(path.join(__dirname, "frontend", "dist", "index.html"));
+//  Health check route (for Docker)
+app.get("/", (req, res) => {
+  res.send("Backend is running ");
 });
+
 
 server.listen(PORT,"0.0.0.0", async() => {
     connectToMongoDB();

@@ -4,13 +4,21 @@ const client = new KinesisClient({
   region: "ap-south-1",
 });
 
-export const sendMessageToKinesis = async (message) => {
-    console.log("🚀 Sending message to Kinesis:", message);
-  const command = new PutRecordCommand({
-    StreamName: "chat-stream",
-    Data: JSON.stringify(message),
-    PartitionKey: message.userId || "default",
-  });
+const STREAM_NAME = "chat-stream";
 
-  await client.send(command);
+export const sendMessageToKinesis = async (data) => {
+  try {
+    const params = {
+      StreamName: STREAM_NAME,
+      Data: Buffer.from(JSON.stringify(data)),
+      PartitionKey: data.receiverId.toString(), //  CRITICAL FIX
+    };
+
+    await client.send(new PutRecordCommand(params));
+
+    console.log(" Successfully sent to Kinesis");
+
+  } catch (error) {
+    console.error(" Kinesis Producer Error:", error);
+  }
 };

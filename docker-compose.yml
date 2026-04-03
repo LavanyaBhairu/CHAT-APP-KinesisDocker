@@ -4,6 +4,10 @@ services:
     build: ./backend
     ports:
       - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
+      interval: 5s
+      retries: 5
     env_file:
       - ./backend/.env
     volumes:
@@ -17,4 +21,5 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
