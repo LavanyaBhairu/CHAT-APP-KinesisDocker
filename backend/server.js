@@ -11,6 +11,8 @@ import userRoutes from "./routes/user.js";
 import connectToMongoDB from "./db/connectToMongoDB.js";
 import { app, server } from "./socket/socket.js";
 
+import { startKinesisConsumer } from "./kinesisConsumer.js";
+
 //const app = express();
 
 const PORT = process.env.PORT || 5000;
@@ -39,7 +41,9 @@ app.use((req, res) => {
 	res.sendFile(path.join(__dirname, "frontend", "dist", "index.html"));
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async() => {
     connectToMongoDB();
     console.log(`Server running on port ${PORT}`)
+    //Start consumer AFTER DB is ready
+    startKinesisConsumer();
 });
