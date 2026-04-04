@@ -20,16 +20,20 @@ const Message = ({ message }) => {
 	const bubbleBgColor = fromMe ? "bg-blue-500" : "";
 	const shakeClass = message.shouldShake ? "shake" : "";
 
-	//  NEW STATE
 	const [showReactions, setShowReactions] = useState(false);
+	const { updateMessageReaction } = useConversation();
 
 	//  HANDLE REACTION
 	const handleReaction = async (emoji) => {
 		try {
-			await axios.post("/api/messages/react", {
-				messageId: message._id,
-				emoji,
+			const res = await axios.post("/api/messages/react", {
+			messageId: message._id,
+			emoji,
 			});
+
+			// 🔥 UPDATE UI IMMEDIATELY
+			updateMessageReaction(message._id, res.data.reactions);
+
 			setShowReactions(false);
 		} catch (err) {
 			console.error(err);

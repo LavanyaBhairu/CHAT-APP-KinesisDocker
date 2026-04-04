@@ -67,24 +67,34 @@ export const getMessages = async (req, res) => {
 export const addReaction = async (req, res) => {
   try {
     const { messageId, emoji } = req.body;
+
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const userId = req.user._id;
 
     const message = await Message.findById(messageId);
 
-    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
 
-    // remove existing reaction by same user
+    // remove old reaction from same user
     message.reactions = message.reactions.filter(
       (r) => r.userId !== userId.toString()
     );
 
-    message.reactions.push({ userId, emoji });
+    message.reactions.push({
+      userId: userId.toString(),
+      emoji,
+    });
 
     await message.save();
 
-    res.json(message);
+    return res.status(200).json(message);
   } catch (error) {
-    console.error("Reaction error:", error);
-    res.status(500).json({ error: "Server error" });
+    console.error("🔥 Reaction error:", error);
+    return res.status(500).json({ error: error.message });
   }
 };

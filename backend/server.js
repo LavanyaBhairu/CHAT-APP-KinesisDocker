@@ -12,8 +12,13 @@ import connectToMongoDB from "./db/connectToMongoDB.js";
 import { app, server } from "./socket/socket.js";
 
 import { startKinesisConsumer } from "./kinesisConsumer.js";
+import cors from "cors";
 
 //const app = express();
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 const PORT = process.env.PORT || 5000;
 
@@ -31,6 +36,12 @@ app.get("/", (req, res) => {
   res.send("Backend is running ");
 });
 
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 
 server.listen(PORT,"0.0.0.0", async() => {
     connectToMongoDB();

@@ -18,7 +18,7 @@ let isConsumerRunning = false;
 
 export const startKinesisConsumer = async () => {
   if (isConsumerRunning) {
-    console.log(" Kinesis consumer already running");
+    console.log("Kinesis consumer already running");
     return;
   }
 
@@ -27,14 +27,14 @@ export const startKinesisConsumer = async () => {
   try {
     let shardIterator = await getShardIterator();
 
-    console.log(" Kinesis Consumer Started...");
+    console.log("Kinesis Consumer Started...");
 
     setInterval(async () => {
       try {
-        console.log(" Polling Kinesis...");
+        console.log("Polling Kinesis...");
 
         if (!shardIterator) {
-          console.log(" Shard iterator missing, fetching again...");
+          console.log("Shard iterator missing, fetching again...");
           shardIterator = await getShardIterator();
         }
 
@@ -45,69 +45,76 @@ export const startKinesisConsumer = async () => {
           })
         );
 
-        //  IMPORTANT: Always update iterator
+        // Always update iterator
         shardIterator = response.NextShardIterator;
 
         const records = response.Records || [];
 
-        if (records.length > 0) {
-          console.log(` Records received: ${records.length}`);
+        if (records.length === 0) {
+          console.log("No records");
+          return;
+        }
 
-          for (const record of records) {
-            try {
-              //  Decode raw data
-              const rawData = Buffer.from(record.Data).toString();
-              console.log(" Raw Data:", rawData);
+        console.log(`Records received: ${records.length}`);
 
-              //  Parse JSON
-              const data = JSON.parse(rawData);
-              console.log(" Parsed Message:", data);
+        for (const record of records) {
+          // 🔥 STEP 1: Decode Base64 safely
+          let decodedData;
+          try {
+            decodedData = Buffer.from(record.Data, "base64").toString("utf-8");
+            console.log("Raw Data:", decodedData);
+          } catch (err) {
+            console.error("Failed to decode record");
+            continue; // skip this record
+          }
 
-              if (!data || !data.receiverId) {
-                console.log(" Invalid data, skipping...");
-                continue;
-              }
+          // 🔥 STEP 2: Parse JSON safely
+          let data;
+          try {
+            data = JSON.parse(decodedData);
+            console.log("Parsed Message:", data);
+          } catch (err) {
+            console.error("Invalid JSON, skipping...");
+            continue; // skip invalid JSON
+          }
 
-              //  HANDLE NEW MESSAGE EVENT
-              if (data.type === "NEW_MESSAGE") {
-                const receiverSocketId = getReceiverSocketId(data.receiverId);
+          // 🔥 STEP 3: Validate required fields
+          if (!data || !data.receiverId) {
+            console.log("Invalid data, skipping...");
+            continue;
+          }
 
-                if (receiverSocketId) {
-                  console.log(` Sending message to user: ${data.receiverId}`);
-                  io.to(receiverSocketId).emit("newMessage", data);
-                } else {
-                  console.log(` User ${data.receiverId} not connected`);
-                }
-              }
+          // 🔥 STEP 4: Handle message event
+          if (data.type === "NEW_MESSAGE") {
+            const receiverSocketId = getReceiverSocketId(data.receiverId);
 
-              //  OPTIONAL: Save to MongoDB (if needed)
-              // await Message.create(data);
+            if (receiverSocketId) {
+              console.log(`Sending message to user: ${data.receiverId}`);
 
-            } catch (err) {
-              console.error(" Failed to process record:", err);
+              io.to(receiverSocketId).emit("newMessage", data);
+            } else {
+              console.log(`User ${data.receiverId} not connected`);
             }
           }
 
-        } else {
-          console.log(" No records");
+          // 🔥 OPTIONAL: Save to DB
+          // await Message.create(data);
         }
-
       } catch (error) {
-        console.error(" Polling error:", error.name);
+        console.error("Polling error:", error.name);
 
         if (error.name === "ExpiredIteratorException") {
-          console.log(" Iterator expired, refreshing...");
+          console.log("Iterator expired, refreshing...");
           shardIterator = await getShardIterator();
         }
       }
     }, 2000);
-
   } catch (error) {
-    console.error(" Kinesis Consumer Initialization Error:", error);
+    console.error("Kinesis Consumer Initialization Error:", error);
   }
 };
 
-//  Get shard dynamically
+// 🔥 Get shard dynamically
 const getShardIterator = async () => {
   try {
     const streamData = await client.send(
@@ -118,7 +125,7 @@ const getShardIterator = async () => {
 
     const shardId = streamData.StreamDescription.Shards[0].ShardId;
 
-    console.log(" Using Shard ID:", shardId);
+    console.log("Using Shard ID:", shardId);
 
     const response = await client.send(
       new GetShardIteratorCommand({
@@ -129,9 +136,8 @@ const getShardIterator = async () => {
     );
 
     return response.ShardIterator;
-
   } catch (error) {
-    console.error(" Error getting shard iterator:", error);
+    console.error("Error getting shard iterator:", error);
     throw error;
   }
 };

@@ -1,31 +1,72 @@
 import { useState, useRef, useEffect } from "react";
-import { BsSend } from "react-icons/bs";
+import { BsSend, BsEmojiSmile } from "react-icons/bs";
 import useSendMessage from "../../hooks/useSendMessage";
 import EmojiPickerComponent from "./EmojiPicker";
-import { BsEmojiSmile } from "react-icons/bs";
+import { useSocketContext } from "../../context/SocketContext";
+import { useAuthContext } from "../../context/AuthContext";
+import useConversation from "../../zustand/useConversation"; 
 
 const MessageInput = () => {
 	const [message, setMessage] = useState("");
 	const [showPicker, setShowPicker] = useState(false);
 	const { loading, sendMessage } = useSendMessage();
 
+	const { socket } = useSocketContext();
+	const { selectedConversation } = useConversation();
+	const { authUser } = useAuthContext();
+
+	const typingTimeoutRef = useRef(null);
 	const pickerRef = useRef();
+
+	// HANDLE TYPING
+	const handleTyping = (e) => {
+		const value = e.target.value;
+		setMessage(value);
+
+		if (!selectedConversation) return;
+
+		// 🔥 Emit typing
+		socket.emit("typing", {
+			senderId: authUser._id,
+			receiverId: selectedConversation._id,
+		});
+
+		// 🔥 Clear previous timeout
+		if (typingTimeoutRef.current) {
+			clearTimeout(typingTimeoutRef.current);
+		}
+
+		// 🔥 Stop typing after delay
+		typingTimeoutRef.current = setTimeout(() => {
+			socket.emit("stopTyping", {
+				senderId: authUser._id,
+				receiverId: selectedConversation._id,
+			});
+		}, 1000);
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		if (!message.trim()) return;
 
 		await sendMessage(message);
+
+		// ✅ STOP TYPING ON SEND
+		socket.emit("stopTyping", {
+			senderId: authUser._id,
+			receiverId: selectedConversation._id,
+		});
+
 		setMessage("");
 	};
 
-	//  Add emoji to input
+	// Emoji select
 	const handleEmojiClick = (emojiData) => {
 		setMessage((prev) => prev + emojiData.emoji);
-		setShowPicker(false); // close after select
+		setShowPicker(false);
 	};
 
-	//  Close picker on outside click
+	// Close picker on outside click
 	useEffect(() => {
 		const handleClickOutside = (e) => {
 			if (pickerRef.current && !pickerRef.current.contains(e.target)) {
@@ -41,7 +82,6 @@ const MessageInput = () => {
 		<form className='px-4 my-3 relative' onSubmit={handleSubmit}>
 			<div className='w-full flex items-center gap-2 relative'>
 
-				{/*  Emoji Button */}
 				<button
 					type='button'
 					onClick={() => setShowPicker(!showPicker)}
@@ -50,27 +90,22 @@ const MessageInput = () => {
 					<BsEmojiSmile />
 				</button>
 
-				{/*  Emoji Picker */}
 				{showPicker && (
 					<div ref={pickerRef} className='absolute bottom-12 z-50'>
 						<EmojiPickerComponent onEmojiClick={handleEmojiClick} />
 					</div>
 				)}
 
-				{/*  Input */}
+				{/* ✅ FIXED INPUT */}
 				<input
 					type='text'
 					className='border text-sm rounded-lg block w-full p-2.5 bg-gray-700 border-gray-600 text-white'
 					placeholder='Send a message'
 					value={message}
-					onChange={(e) => setMessage(e.target.value)}
+					onChange={handleTyping}
 				/>
 
-				{/*  Send Button */}
-				<button
-					type='submit'
-					className='flex items-center justify-center'
-				>
+				<button type='submit' className='flex items-center justify-center'>
 					{loading ? (
 						<div className='loading loading-spinner'></div>
 					) : (
@@ -83,24 +118,3 @@ const MessageInput = () => {
 };
 
 export default MessageInput;
-
-// STARTER CODE SNIPPET
-// import { BsSend } from "react-icons/bs";
-
-// const MessageInput = () => {
-// 	return (
-// 		<form className='px-4 my-3'>
-// 			<div className='w-full relative'>
-// 				<input
-// 					type='text'
-// 					className='border text-sm rounded-lg block w-full p-2.5  bg-gray-700 border-gray-600 text-white'
-// 					placeholder='Send a message'
-// 				/>
-// 				<button type='submit' className='absolute inset-y-0 end-0 flex items-center pe-3'>
-// 					<BsSend />
-// 				</button>
-// 			</div>
-// 		</form>
-// 	);
-// };
-// export default MessageInput;
